@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>빛의 삼원색 합성 가상실험</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --panel-color: #2c3e50;
+        }
+
+        /* === 화면 잘림 방지를 위한 절대적 스케일링 설정 === */
+        * { box-sizing: border-box; margin: 0; padding: 0; touch-action: none; user-select: none; }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color); /* 남는 여백(레터박스)을 어둡게 처리 */
+            font-family: 'Malgun Gothic', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 고정 비율의 메인 컨테이너 */
+        #app-container {
+            width: 1280px;
+            height: 720px;
+            background-color: #111;
+            display: flex;
+            flex-direction: column;
+            transform-origin: center center;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* 상단 미션 안내바 */
+        header {
+            background: #1a252f;
+            padding: 15px 10px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.8);
+            z-index: 10;
+            border-bottom: 2px solid #444;
+            flex-shrink: 0;
+        }
+
+        #mission-title {
+            font-size: 26px;
+            font-weight: 900;
+            color: #f1c40f;
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+        }
+
+        #mission-desc {
+            font-size: 22px;
+            font-weight: bold;
+            color: #ecf0f1;
+            background: rgba(0, 0, 0, 0.4);
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 20px;
+            border: 1px solid #555;
+            line-height: 1.4;
+        }
+
+        /* 텍스트 색상 강조 클래스 */
+        .c-red { color: #ff6b6b; text-shadow: 0 0 5px rgba(255,107,107,0.6); }
+        .c-green { color: #2ecc71; text-shadow: 0 0 5px rgba(46,204,113,0.6); }
+        .c-blue { color: #54a0ff; text-shadow: 0 0 5px rgba(84,160,255,0.6); }
+        .c-yellow { color: #f1c40f; text-shadow: 0 0 5px rgba(241,196,15,0.6); }
+        .c-magenta { color: #e056fd; text-shadow: 0 0 5px rgba(224,86,253,0.6); }
+        .c-cyan { color: #00d2d3; text-shadow: 0 0 5px rgba(0,210,211,0.6); }
+        .c-white { color: #ffffff; text-shadow: 0 0 8px rgba(255,255,255,0.8); }
+
+        /* 실험 영역 */
+        #experiment-canvas {
+            flex: 1;
+            position: relative;
+            background: black;
+            overflow: hidden;
+        }
+
+        /* 조명 컨테이너 */
+        .light-container {
+            position: absolute;
+            width: 320px;
+            height: 320px;
+            cursor: crosshair;
+        }
+
+        /* 빛 요소 */
+        .light-glow {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            opacity: 1; 
+            mix-blend-mode: screen; 
+            pointer-events: none;
+        }
+
+        /* 합성 색상 이름 라벨 */
+        .syn-label {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            font-weight: 900;
+            white-space: nowrap; 
+            pointer-events: none;
+            display: none; 
+            color: white;
+            text-shadow: 
+                -2px -2px 0 #000,  2px -2px 0 #000,
+                -2px  2px 0 #000,  2px  2px 0 #000;
+            transition: font-size 0.1s ease-out;
+        }
+
+        #syn-yellow, #syn-magenta, #syn-cyan { z-index: 40; }
+        #syn-white {
+            z-index: 50;
+            color: black;
+            text-shadow: -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff, 2px 2px 0 #fff;
+        }
+
+        /* 하단 결과 텍스트 영역 */
+        #result-display {
+            position: absolute;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            padding: 15px 30px;
+            border-radius: 25px;
+            border: 1px solid #555;
+            font-size: 22px;
+            pointer-events: none;
+            text-align: center;
+            z-index: 100;
+            min-width: 300px;
+        }
+        .highlight { font-weight: bold; color: #f1c40f; font-size: 1.1em;}
+        .success-text { color: #2ecc71; font-weight: bold; }
+
+        /* 하단 컨트롤 바 */
+        footer {
+            height: 70px;
+            background: var(--panel-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            padding: 0 20px;
+            z-index: 10;
+            flex-shrink: 0;
+        }
+
+        .btn {
+            background: #7f8c8d;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 3px 0 #555;
+        }
+        .btn:active { transform: translateY(3px); box-shadow: none; }
+
+        /* 개별 버튼 색상 */
+        .btn-first { background: #e74c3c; box-shadow: 0 3px 0 #c0392b; }
+        .btn-reset { background: #34495e; box-shadow: 0 3px 0 #2c3e50; }
+        
+        /* 다음 단계 버튼 */
+        .btn-next {
+            background: #27ae60;
+            box-shadow: 0 3px 0 #219653;
+            display: none; 
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(39, 174, 96, 0.7); }
+            50% { transform: scale(1.05); box-shadow: 0 0 15px 5px rgba(39, 174, 96, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(39, 174, 96, 0); }
+        }
+
+        /* 세로 모드 (Portrait) 태블릿 대응 - 컨테이너 비율 자체를 반전 */
+        @media (orientation: portrait) {
+            #app-container { width: 720px; height: 1280px; }
+            header { padding: 30px 10px; }
+            #mission-title { font-size: 32px; }
+            #mission-desc { font-size: 26px; padding: 15px 30px; }
+            footer { height: 100px; }
+            .btn { font-size: 24px; padding: 15px 30px; }
+            #result-display { font-size: 26px; padding: 25px 40px; bottom: 40px; }
+            .light-container { width: 350px; height: 350px; } 
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        <header>
+            <div id="mission-title">[ 1단계 ]</div>
+            <div id="mission-desc">조명을 겹쳐 미션을 수행하세요.</div>
+        </header>
+
+        <div id="experiment-canvas">
+            <div id="result-display">조명을 움직여 빛을 합성해보세요.</div>
+
+            <div id="syn-yellow" class="syn-label">노란색</div>
+            <div id="syn-magenta" class="syn-label">자홍색</div>
+            <div id="syn-cyan" class="syn-label">청록색</div>
+            <div id="syn-white" class="syn-label">흰색</div>
+
+            <div id="red" class="light-container">
+                <div class="light-glow" style="background-color: #ff0000;"></div>
+            </div>
+            <div id="green" class="light-container">
+                <div class="light-glow" style="background-color: #00ff00;"></div>
+            </div>
+            <div id="blue" class="light-container">
+                <div class="light-glow" style="background-color: #0000ff;"></div>
+            </div>
+        </div>
+
+        <footer>
+            <button id="btn-first" class="btn btn-first" onclick="loadStage(1)">처음으로</button>
+            <button id="btn-reset" class="btn btn-reset" onclick="resetCurrentStage()">다시 배치</button>
+            <button id="btn-next" class="btn btn-next" onclick="nextStage()">다음 단계로 ➔</button>
+        </footer>
+    </div>
+
+    <script>
+        // === 🚀 1. 자동 화면 맞춤 (Auto-Scaling) 스크립트 ===
+        function scaleApp() {
+            const app = document.getElementById('app-container');
+            const winWidth = window.innerWidth;
+            const winHeight = window.innerHeight;
+            
+            // 기기 회전(가로/세로) 상태 감지
+            const isPortrait = winHeight > winWidth;
+            const appWidth = isPortrait ? 720 : 1280;
+            const appHeight = isPortrait ? 1280 : 720;
+            
+            // 화면 비율에 맞춰 전체 컨테이너를 축소/확대
+            let scale = Math.min(winWidth / appWidth, winHeight / appHeight);
+            app.style.transform = `scale(${scale})`;
+        }
+        
+        let lastOrientation = window.innerHeight > window.innerWidth;
+        window.addEventListener('resize', () => {
+            scaleApp();
+            // 화면이 가로에서 세로로, 또는 그 반대로 회전했을 때만 조명 재배치
+            const currentOrientation = window.innerHeight > window.innerWidth;
+            if(lastOrientation !== currentOrientation) {
+                lastOrientation = currentOrientation;
+                if(activeLight === null) loadStage(currentStage);
+            }
+        });
+        window.addEventListener('orientationchange', scaleApp);
+        scaleApp(); // 처음 시작할 때 적용
+
+        // === 2. 실험 로직 ===
+        const canvas = document.getElementById('experiment-canvas');
+        const resultDisplay = document.getElementById('result-display');
+        const rEl = document.getElementById('red');
+        const gEl = document.getElementById('green');
+        const bEl = document.getElementById('blue');
+        const btnFirst = document.getElementById('btn-first');
+        const btnNext = document.getElementById('btn-next');
+        
+        let activeLight = null;
+        let offset = { x: 0, y: 0 };
+        
+        let currentStage = 1;
+        let isStageCleared = false;
+
+        function loadStage(stage) {
+            currentStage = stage;
+            isStageCleared = false;
+            
+            btnNext.style.display = 'none'; 
+            btnFirst.style.display = (stage === 1) ? 'none' : 'inline-block'; 
+            
+            const cx = canvas.offsetWidth / 2;
+            const cy = canvas.offsetHeight / 2;
+            const radius = rEl.offsetWidth / 2;
+            const dist2 = radius * 1.5; 
+            const dist3 = radius * 1.2; 
+            
+            rEl.style.left = '-9999px'; rEl.style.top = '-9999px';
+            gEl.style.left = '-9999px'; gEl.style.top = '-9999px';
+            bEl.style.left = '-9999px'; bEl.style.top = '-9999px';
+
+            const mTitle = document.getElementById('mission-title');
+            const mDesc = document.getElementById('mission-desc');
+
+            if (stage === 1) {
+                mTitle.innerText = "[ 1단계 : 첫 번째 조합 ]";
+                mDesc.innerHTML = "<span class='c-red'>빨간색</span> 조명과 <span class='c-green'>초록색</span> 조명을 겹쳐 <span class='c-yellow'>노란색</span>을 만드세요!";
+                rEl.style.left = (cx - dist2 - radius) + 'px'; rEl.style.top = (cy - radius) + 'px';
+                gEl.style.left = (cx + dist2 - radius) + 'px'; gEl.style.top = (cy - radius) + 'px';
+            } 
+            else if (stage === 2) {
+                mTitle.innerText = "[ 2단계 : 두 번째 조합 ]";
+                mDesc.innerHTML = "<span class='c-red'>빨간색</span> 조명과 <span class='c-blue'>파란색</span> 조명을 겹쳐 <span class='c-magenta'>자홍색(마젠타)</span>을 만드세요!";
+                rEl.style.left = (cx - dist2 - radius) + 'px'; rEl.style.top = (cy - radius) + 'px';
+                bEl.style.left = (cx + dist2 - radius) + 'px'; bEl.style.top = (cy - radius) + 'px';
+            } 
+            else if (stage === 3) {
+                mTitle.innerText = "[ 3단계 : 세 번째 조합 ]";
+                mDesc.innerHTML = "<span class='c-green'>초록색</span> 조명과 <span class='c-blue'>파란색</span> 조명을 겹쳐 <span class='c-cyan'>청록색(시안)</span>을 만드세요!";
+                gEl.style.left = (cx - dist2 - radius) + 'px'; gEl.style.top = (cy - radius) + 'px';
+                bEl.style.left = (cx + dist2 - radius) + 'px'; bEl.style.top = (cy - radius) + 'px';
+            } 
+            else if (stage === 4) {
+                mTitle.innerText = "[ 4단계 : 최종 조합 ]";
+                mDesc.innerHTML = "세 가지 조명을 모두 겹쳐서 <span class='c-white'>흰색</span>을 만들어보세요!";
+                rEl.style.left = (cx - radius) + 'px'; rEl.style.top = (cy - dist3 - radius) + 'px';
+                gEl.style.left = (cx - dist3*0.866 - radius) + 'px'; gEl.style.top = (cy + dist3*0.5 - radius) + 'px';
+                bEl.style.left = (cx + dist3*0.866 - radius) + 'px'; bEl.style.top = (cy + dist3*0.5 - radius) + 'px';
+            } 
+            else {
+                mTitle.innerText = "[ 자유 실험 모드 ]";
+                mDesc.innerHTML = "모든 미션 완료! 자유롭게 빛을 조합하며 실험해보세요.";
+                rEl.style.left = (cx - radius) + 'px'; rEl.style.top = (cy - dist3 - radius) + 'px';
+                gEl.style.left = (cx - dist3*0.866 - radius) + 'px'; gEl.style.top = (cy + dist3*0.5 - radius) + 'px';
+                bEl.style.left = (cx + dist3*0.866 - radius) + 'px'; bEl.style.top = (cy + dist3*0.5 - radius) + 'px';
+            }
+            
+            checkSynthesis();
+        }
+
+        function resetCurrentStage() { loadStage(currentStage); }
+        function nextStage() { loadStage(currentStage + 1); }
+
+        function startDrag(e) {
+            const target = e.target.closest('.light-container');
+            if (target) {
+                activeLight = target;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                
+                // ★ 터치 좌표 스케일 보정 (기기가 축소/확대 되어도 정확한 터치위치 계산)
+                const app = document.getElementById('app-container');
+                const scale = app.getBoundingClientRect().width / app.offsetWidth;
+                const canvasRect = canvas.getBoundingClientRect();
+                
+                const localX = (clientX - canvasRect.left) / scale;
+                const localY = (clientY - canvasRect.top) / scale;
+                
+                offset.x = localX - activeLight.offsetLeft;
+                offset.y = localY - activeLight.offsetTop;
+                activeLight.style.zIndex = 100;
+            }
+        }
+
+        function drag(e) {
+            if (!activeLight) return;
+            e.preventDefault();
+
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            // ★ 터치 좌표 스케일 보정
+            const app = document.getElementById('app-container');
+            const scale = app.getBoundingClientRect().width / app.offsetWidth;
+            const canvasRect = canvas.getBoundingClientRect();
+            
+            const localX = (clientX - canvasRect.left) / scale;
+            const localY = (clientY - canvasRect.top) / scale;
+
+            activeLight.style.left = (localX - offset.x) + 'px';
+            activeLight.style.top = (localY - offset.y) + 'px';
+
+            checkSynthesis();
+        }
+
+        function endDrag() {
+            if (activeLight) {
+                activeLight.style.zIndex = '';
+                activeLight = null;
+            }
+        }
+
+        function getCenter(el) {
+            return { x: el.offsetLeft + el.offsetWidth / 2, y: el.offsetTop + el.offsetHeight / 2 };
+        }
+
+        function getDist(p1, p2) {
+            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+        }
+
+        function setLabel(id, x, y, size) {
+            const el = document.getElementById(id);
+            if (size >= 12) {  // 라벨 표시 최소 크기
+                el.style.display = 'block';
+                el.style.left = x + 'px'; el.style.top = y + 'px';
+                el.style.fontSize = size + 'px';
+            } else { el.style.display = 'none'; }
+        }
+
+        function getSafeLabelPos(c1, c2, opponentCenter, radius) {
+            const mid = { x: (c1.x + c2.x) / 2, y: (c1.y + c2.y) / 2 };
+            const distOppToMid = getDist(opponentCenter, mid);
+            const safeDist = radius * 1.15; 
+            
+            let targetX = mid.x; let targetY = mid.y;
+
+            if (distOppToMid < safeDist && distOppToMid > 0) {
+                const dx = mid.x - opponentCenter.x;
+                const dy = mid.y - opponentCenter.y;
+                const len = Math.sqrt(dx*dx + dy*dy) || 1;
+                targetX = opponentCenter.x + (dx / len) * safeDist;
+                targetY = opponentCenter.y + (dy / len) * safeDist;
+            }
+
+            const marginX = 40; const marginYBottom = 90; const marginYTop = 30;
+            targetX = Math.max(marginX, Math.min(canvas.offsetWidth - marginX, targetX));
+            targetY = Math.max(marginYTop, Math.min(canvas.offsetHeight - marginYBottom, targetY));
+
+            return { x: targetX, y: targetY };
+        }
+
+        function calcSize(c1, c2, opponentCenter, radius) {
+            const dist12 = getDist(c1, c2);
+            if (dist12 > radius * 2) return 0; 
+            
+            let size = (radius * 2 - dist12) * 0.2; 
+            const mid = { x: (c1.x + c2.x) / 2, y: (c1.y + c2.y) / 2 };
+            const distOppToMid = getDist(opponentCenter, mid);
+            
+            if (distOppToMid < radius * 1.1) { size -= (radius * 1.1 - distOppToMid) * 0.3; }
+            return Math.min(28, Math.max(0, size)); // 스케일 대응 폰트사이즈 약간 증가
+        }
+
+        function checkSynthesis() {
+            const radius = rEl.offsetWidth / 2;
+            const cR = getCenter(rEl);
+            const cG = getCenter(gEl);
+            const cB = getCenter(bEl);
+
+            const yC = getSafeLabelPos(cR, cG, cB, radius); 
+            const mC = getSafeLabelPos(cR, cB, cG, radius); 
+            const cC = getSafeLabelPos(cG, cB, cR, radius); 
+
+            let sY = calcSize(cR, cG, cB, radius);
+            let sM = calcSize(cR, cB, cG, radius);
+            let sC = calcSize(cG, cB, cR, radius);
+
+            const wC = { x: (cR.x + cG.x + cB.x) / 3, y: (cR.y + cG.y + cB.y) / 3 };
+            const maxDistToW = Math.max(getDist(wC, cR), getDist(wC, cG), getDist(wC, cB));
+            const isWhite = maxDistToW < radius; 
+            
+            let sW = 0;
+            if (isWhite) {
+                sW = (radius - maxDistToW) * 0.5;
+                sW = Math.min(30, Math.max(0, sW));
+            }
+
+            if (getDist(cR, cG) < 30 && getDist(cR, cB) < 30) {
+                sY = sM = sC = 0; sW = 30; wC.x = cR.x; wC.y = cR.y;
+            }
+
+            setLabel('syn-yellow', yC.x, yC.y, sY);
+            setLabel('syn-magenta', mC.x, mC.y, sM);
+            setLabel('syn-cyan', cC.x, cC.y, sC);
+            setLabel('syn-white', wC.x, wC.y, sW);
+
+            if (!isStageCleared && currentStage < 5) {
+                let clearedNow = false;
+                if (currentStage === 1 && sY >= 12) clearedNow = true;
+                else if (currentStage === 2 && sM >= 12) clearedNow = true;
+                else if (currentStage === 3 && sC >= 12) clearedNow = true;
+                else if (currentStage === 4 && sW >= 12) clearedNow = true;
+
+                if (clearedNow) {
+                    isStageCleared = true;
+                    btnNext.style.display = 'inline-block';
+                }
+            }
+
+            if (isStageCleared && currentStage < 5) {
+                resultDisplay.innerHTML = "<span class='success-text'>🎉 미션 성공! 하단의 [다음 단계로]를 누르세요.</span>";
+            } else {
+                if (sW >= 12) { resultDisplay.innerHTML = "빨강 + 초록 + 파랑 = <span class='highlight'>흰색</span>"; } 
+                else if (sY >= 12) { resultDisplay.innerHTML = "빨강 + 초록 = <span class='highlight'>노란색</span>"; } 
+                else if (sM >= 12) { resultDisplay.innerHTML = "빨강 + 파랑 = <span class='highlight'>자홍색(마젠타)</span>"; } 
+                else if (sC >= 12) { resultDisplay.innerHTML = "초록 + 파랑 = <span class='highlight'>청록색(시안)</span>"; } 
+                else { resultDisplay.innerHTML = "조명을 가까이 가져가 빛을 겹쳐보세요."; }
+            }
+        }
+
+        canvas.addEventListener('mousedown', startDrag);
+        window.addEventListener('mousemove', drag);
+        window.addEventListener('mouseup', endDrag);
+
+        canvas.addEventListener('touchstart', startDrag, {passive: false});
+        window.addEventListener('touchmove', drag, {passive: false});
+        window.addEventListener('touchend', endDrag);
+
+        window.onload = () => { loadStage(1); };
+    </script>
+</body>
+</html>
